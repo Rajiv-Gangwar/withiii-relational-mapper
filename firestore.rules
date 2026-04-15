@@ -1,0 +1,156 @@
+// ===============================================================
+// Assumed Data Model
+// ===============================================================
+//
+// Collection: /users/{userId}
+// Document ID: userId
+// Fields:
+//   - id: string (required)
+//   - name: string (required)
+//   - email: string (required, email format)
+//   - role: string (required, enum)
+//   - department: string (optional)
+//   - departmentName: string (optional)
+//   - title: string (optional)
+//   - avatar: string (optional)
+//
+// Collection: /maps/{mapId}
+// Document ID: mapId
+// Fields:
+//   - id: string (required)
+//   - name: string (required)
+//   - type: string (required, enum)
+//   - description: string (optional)
+//   - ownerId: string (required)
+//   - participants: list (required)
+//   - status: string (required, enum)
+//   - createdAt: timestamp (required)
+//
+// Collection: /maps/{mapId}/relationships/{relId}
+// Document ID: relId (usually fromId_toId)
+// Fields:
+//   - mapId: string (required)
+//   - fromId: string (required)
+//   - toId: string (required)
+//   - current: number (required, -2 to 2)
+//   - goal: number (required, -2 to 2)
+//   - lastUpdated: timestamp (required)
+//
+// Collection: /maps/{mapId}/comments/{commentId}
+// Document ID: commentId
+// Fields:
+//   - id: string (required)
+//   - mapId: string (required)
+//   - fromId: string (required)
+//   - toId: string (required)
+//   - authorId: string (required)
+//   - text: string (required, max 1000 chars)
+//   - createdAt: timestamp (required)
+//
+// Collection: /maps/{mapId}/presence/{userId}
+// Document ID: userId
+// Fields:
+//   - userId: string (required)
+//   - mapId: string (required)
+//   - lastSeen: timestamp (required)
+//   - cursor: map (optional, {x: number, y: number})
+//
+// ===============================================================
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ===============================================================
+    // Helper Functions
+    // ===============================================================
+    
+    function isAuthenticated() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isAuthenticated() && request.auth.uid == userId;
+    }
+
+    function isAdmin() {
+      return isAuthenticated() && 
+        (get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == 'Withiii Host' ||
+         request.auth.token.email == "rajiv.gangwar@actiknow.com");
+    }
+
+    function isMapParticipant(mapId) {
+      let mapData = get(/databases/$(database)/documents/maps/$(mapId)).data;
+      return isAuthenticated() && (request.auth.uid == mapData.ownerId || request.auth.uid in mapData.participants);
+    }
+
+    function isValidEmail(email) {
+      return email is string && email.matches("^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$");
+    }
+
+    function isValidUser(data) {
+      return data.keys().hasAll(['id', 'name', 'email', 'role']) &&
+             data.id is string && data.id.size() > 0 &&
+             data.name is string && data.name.size() > 0 && data.name.size() < 100 &&
+             isValidEmail(data.email) &&
+             data.role in ['Withiii Host', 'Facilitator', 'Organization Admin', 'Department Lead', 'Team Lead', 'Individual User', 'Guest'];
+    }
+
+    function isValidMap(data) {
+      return data.keys().hasAll(['id', 'name', 'type', 'ownerId', 'status', 'createdAt']) &&
+             data.id is string && data.name is string && data.name.size() < 200 &&
+             data.type in ['Individual', 'Team', 'Organization'] &&
+             data.ownerId is string &&
+             data.status in ['Draft', 'Active', 'Completed', 'awaiting-rating'] &&
+             data.participants is list;
+    }
+
+    function isValidRelationship(data) {
+      return data.keys().hasAll(['mapId', 'fromId', 'toId', 'current', 'goal', 'lastUpdated']) &&
+             data.mapId is string && data.fromId is string && data.toId is string &&
+             data.current is number && data.current >= -2 && data.current <= 2 &&
+             data.goal is number && data.goal >= -2 && data.goal <= 2;
+    }
+
+    function isValidComment(data) {
+      return data.keys().hasAll(['id', 'mapId', 'fromId', 'toId', 'authorId', 'text', 'createdAt']) &&
+             data.text is string && data.text.size() > 0 && data.text.size() < 1000 &&
+             data.authorId == request.auth.uid;
+    }
+
+    // ===============================================================
+    // Rules
+    // ===============================================================
+
+    match /users/{userId} {
+      allow read: if isAuthenticated();
+      allow create: if isOwner(userId) && isValidUser(request.resource.data);
+      allow update: if (isOwner(userId) || isAdmin()) && isValidUser(request.resource.data);
+    }
+
+    match /maps/{mapId} {
+      allow read: if isAuthenticated(); // Or restrict to participants if needed
+      allow create: if isAuthenticated() && isValidMap(request.resource.data) && request.resource.data.ownerId == request.auth.uid;
+      allow update: if isAuthenticated() && (request.auth.uid == resource.data.ownerId || isAdmin()) && isValidMap(request.resource.data);
+      allow delete: if isAuthenticated() && (request.auth.uid == resource.data.ownerId || isAdmin());
+
+      match /relationships/{relId} {
+        allow read: if isMapParticipant(mapId);
+        allow create, update: if isMapParticipant(mapId) && isValidRelationship(request.resource.data);
+        allow delete: if isMapParticipant(mapId);
+      }
+
+      match /comments/{commentId} {
+        allow read: if isMapParticipant(mapId);
+        allow create: if isMapParticipant(mapId) && isValidComment(request.resource.data);
+        allow update: if isMapParticipant(mapId) && isValidComment(request.resource.data) && request.auth.uid == resource.data.authorId;
+        allow delete: if isMapParticipant(mapId) && (request.auth.uid == resource.data.authorId || isAdmin());
+      }
+
+      match /presence/{userId} {
+        allow read: if isMapParticipant(mapId);
+        allow write: if isOwner(userId);
+      }
+    }
+  }
+}

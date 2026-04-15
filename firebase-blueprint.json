@@ -1,0 +1,105 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "email": { "type": "string", "format": "email" },
+        "role": { "type": "string", "enum": ["Withiii Host", "Facilitator", "Organization Admin", "Department Lead", "Team Lead", "Individual User", "Guest"] },
+        "department": { "type": "string" },
+        "departmentName": { "type": "string" },
+        "title": { "type": "string" },
+        "avatar": { "type": "string" }
+      },
+      "required": ["id", "name", "email", "role"]
+    },
+    "RelationalMap": {
+      "title": "Relational Map",
+      "description": "A map representing relationships between users",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "name": { "type": "string" },
+        "type": { "type": "string", "enum": ["Individual", "Team", "Organization"] },
+        "description": { "type": "string" },
+        "ownerId": { "type": "string" },
+        "participants": { "type": "array", "items": { "type": "string" } },
+        "status": { "type": "string", "enum": ["Draft", "Active", "Completed", "awaiting-rating"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "name", "type", "ownerId", "status", "createdAt"]
+    },
+    "Relationship": {
+      "title": "Relationship",
+      "description": "A connection between two users in a map",
+      "type": "object",
+      "properties": {
+        "mapId": { "type": "string" },
+        "fromId": { "type": "string" },
+        "toId": { "type": "string" },
+        "current": { "type": "number" },
+        "goal": { "type": "number" },
+        "lastUpdated": { "type": "string", "format": "date-time" }
+      },
+      "required": ["mapId", "fromId", "toId", "current", "goal", "lastUpdated"]
+    },
+    "Comment": {
+      "title": "Comment",
+      "description": "A comment left on a relationship",
+      "type": "object",
+      "properties": {
+        "id": { "type": "string" },
+        "mapId": { "type": "string" },
+        "fromId": { "type": "string" },
+        "toId": { "type": "string" },
+        "authorId": { "type": "string" },
+        "text": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["id", "mapId", "fromId", "toId", "authorId", "text", "createdAt"]
+    },
+    "Presence": {
+      "title": "Presence",
+      "description": "Real-time presence of a user in a map",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "mapId": { "type": "string" },
+        "lastSeen": { "type": "string", "format": "date-time" },
+        "cursor": {
+          "type": "object",
+          "properties": {
+            "x": { "type": "number" },
+            "y": { "type": "number" }
+          }
+        }
+      },
+      "required": ["userId", "mapId", "lastSeen"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "User profiles"
+    },
+    "/maps/{mapId}": {
+      "schema": "RelationalMap",
+      "description": "Relational maps"
+    },
+    "/maps/{mapId}/relationships/{relId}": {
+      "schema": "Relationship",
+      "description": "Relationships within a map"
+    },
+    "/maps/{mapId}/comments/{commentId}": {
+      "schema": "Comment",
+      "description": "Comments on relationships"
+    },
+    "/maps/{mapId}/presence/{userId}": {
+      "schema": "Presence",
+      "description": "User presence in a map"
+    }
+  }
+}

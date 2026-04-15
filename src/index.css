@@ -1,0 +1,41 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Inter", ui-sans-serif, system-ui, sans-serif;
+  --color-primary: #8a5fbb;
+  --color-primary-light: #f3f0f9;
+  --color-primary-dark: #6b46a1;
+  --color-secondary: #300a73;
+  --color-accent: #eab948;
+  --color-accent-dark: #c98536;
+  --color-neutral-bg: #fafafa;
+}
+
+@layer base {
+  body {
+    @apply font-sans text-sm text-gray-900 bg-white antialiased;
+  }
+}
+
+@layer components {
+  .card {
+    @apply bg-white rounded-xl border border-gray-100 shadow-sm p-4 hover:shadow-md transition-shadow duration-200;
+  }
+  
+  .btn-primary {
+    @apply bg-accent text-white px-3 py-1.5 rounded-lg font-medium hover:bg-accent-dark transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed text-sm;
+  }
+  
+  .btn-secondary {
+    @apply bg-white text-gray-700 border border-gray-200 px-3 py-1.5 rounded-lg font-medium hover:bg-gray-50 transition-colors duration-200 text-sm;
+  }
+  
+  .btn-outline {
+    @apply bg-transparent text-primary border border-primary px-3 py-1.5 rounded-lg font-medium hover:bg-primary-light transition-colors duration-200 text-sm;
+  }
+  
+  .input-field {
+    @apply w-full px-3 py-1.5 rounded-lg border border-gray-200 focus:outline-none focus:ring-2 focus:ring-primary/20 focus:border-primary transition-all duration-200 text-sm;
+  }
+}
