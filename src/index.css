@@ -16,6 +16,19 @@
   body {
     @apply font-sans text-sm text-gray-900 bg-white antialiased;
   }
+  
+  button, 
+  [role="button"], 
+  [type="button"], 
+  [type="submit"],
+  select,
+  a,
+  input[type="checkbox"],
+  input[type="radio"],
+  summary,
+  .cursor-pointer {
+    @apply cursor-pointer;
+  }
 }
 
 @layer components {

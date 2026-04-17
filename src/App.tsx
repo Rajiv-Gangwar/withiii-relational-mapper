@@ -181,7 +181,7 @@ const PresenceAvatars = ({ mapId }: { mapId: string }) => {
   );
 };
 
-const CommentsSection = ({ mapId, fromId, toId, user }: { mapId: string, fromId: string, toId: string, user: SimpleUser | null }) => {
+const CommentsSection = ({ mapId, fromId, toId, user }: { mapId: string, fromId: string, toId: string, user: User | null }) => {
   const [comments, setComments] = useState<any[]>([]);
   const [newComment, setNewComment] = useState('');
   const [loading, setLoading] = useState(false);
@@ -206,8 +206,8 @@ const CommentsSection = ({ mapId, fromId, toId, user }: { mapId: string, fromId:
         mapId,
         fromId,
         toId,
-        authorId: user.uid,
-        authorName: user.displayName || 'Anonymous',
+        authorId: user.id,
+        authorName: user.name || 'Anonymous',
         text: newComment,
         createdAt: serverTimestamp()
       });
@@ -409,7 +409,7 @@ const Header = ({
   title: string, 
   onLogout: () => void, 
   isGuest?: boolean,
-  user?: SimpleUser | null,
+  user: User | null,
   isSidebarOpen?: boolean,
   setIsSidebarOpen?: (o: boolean) => void
 }) => (
@@ -430,8 +430,8 @@ const Header = ({
     <div className="flex items-center gap-4">
       {user && !isGuest && (
         <div className="hidden md:flex items-center gap-3 px-3 py-1.5 bg-gray-50 rounded-xl border border-gray-100">
-          <img src={user.photoURL || `https://picsum.photos/seed/${user.uid}/100`} className="w-6 h-6 rounded-full" alt="" referrerPolicy="no-referrer" />
-          <span className="text-xs font-bold text-secondary">{user.displayName}</span>
+          <img src={user.avatar || `https://picsum.photos/seed/${user.id}/100`} className="w-6 h-6 rounded-full" alt="" referrerPolicy="no-referrer" />
+          <span className="text-xs font-bold text-secondary">{user.name}</span>
         </div>
       )}
       <button 
@@ -480,34 +480,58 @@ const Toast = ({ message, type, onClose }: { message: string, type: 'success' | 
 
 // --- Screen Components ---
 
-const LoginScreen = ({ onLogin, onGuest }: { onLogin: (user: SimpleUser) => void, onGuest: () => void }) => {
-  const [name, setName] = useState('John Doe');
-  const [email, setEmail] = useState('john@example.com');
+const LoginScreen = ({ onLogin, onGuest }: { onLogin: (user: User) => void, onGuest: () => void }) => {
+  const [isSignup, setIsSignup] = useState(false);
   const [loading, setLoading] = useState(false);
+  const [toast, setToast] = useState<{ message: string, type: 'success' | 'error' } | null>(null);
+  
+  const [email, setEmail] = useState('alex@example.com');
+  const [password, setPassword] = useState('password123');
+  const [name, setName] = useState('');
 
-  const handleSimpleLogin = (e: React.FormEvent) => {
+  const handleEmailAuth = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!name.trim()) return;
-    
+    if (!email || !password || (isSignup && !name)) {
+      setToast({ message: 'Please fill in all required fields.', type: 'error' });
+      return;
+    }
+
     setLoading(true);
-    const mockUser: SimpleUser = {
-      uid: email || `user_${Math.random().toString(36).substr(2, 9)}`,
-      displayName: name,
-      email: email || `${name.toLowerCase().replace(/\s+/g, '.')}@example.com`,
-      photoURL: `https://picsum.photos/seed/${name}/100`
-    };
-    
-    localStorage.setItem('withiii_user', JSON.stringify(mockUser));
     setTimeout(() => {
-      onLogin(mockUser);
-      setLoading(false);
-    }, 500);
+      // Mock validation
+      let demoUser: User | undefined;
+      
+      if (isSignup) {
+        demoUser = {
+          id: Math.random().toString(36).substr(2, 9),
+          name: name,
+          email: email,
+          role: 'Individual User',
+          avatar: `https://picsum.photos/seed/${email}/100`
+        };
+      } else {
+        demoUser = MOCK_USERS.find(u => u.email === email);
+        if (!demoUser && email === 'demo@example.com') {
+          demoUser = MOCK_USERS[0];
+        }
+      }
+
+      if (demoUser) {
+        localStorage.setItem('demo_user', JSON.stringify(demoUser));
+        onLogin(demoUser);
+      } else {
+        setToast({ message: 'Invalid credentials for demo.', type: 'error' });
+        setLoading(false);
+      }
+    }, 800);
   };
 
   return (
     <div className="h-screen flex bg-white overflow-hidden" role="main">
+      {/* Left Side: Form */}
       <div className="w-full lg:w-1/2 flex flex-col justify-center px-8 md:px-16 lg:px-24 py-8">
         <motion.div 
+          key={isSignup ? 'signup' : 'login'}
           initial={{ opacity: 0, x: -20 }}
           animate={{ opacity: 1, x: 0 }}
           className="max-w-md w-full mx-auto"
@@ -516,25 +540,30 @@ const LoginScreen = ({ onLogin, onGuest }: { onLogin: (user: SimpleUser) => void
             <div className="mb-6">
               <Logo className="h-10" />
             </div>
-            <h2 className="text-3xl font-bold text-secondary mb-1">Simple Sign In</h2>
-            <p className="text-sm text-gray-600">Enter your name to start mapping your relationships.</p>
+            <h2 className="text-3xl font-bold text-secondary mb-1">
+              {isSignup ? 'Create Account' : 'Welcome Back'}
+            </h2>
+            <p className="text-sm text-gray-600">
+              {isSignup ? 'Start mapping your relationships today.' : 'Map your relationships, unlock your potential.'}
+            </p>
           </div>
           
-          <form onSubmit={handleSimpleLogin} className="space-y-4">
+          <form onSubmit={handleEmailAuth} className="space-y-4">
+            {isSignup && (
+              <div>
+                <label htmlFor="signup-name" className="block text-xs font-medium text-gray-700 mb-1.5">Full Name</label>
+                <input 
+                  id="signup-name" 
+                  type="text" 
+                  placeholder="John Doe" 
+                  value={name}
+                  onChange={(e) => setName(e.target.value)}
+                  className="input-field focus-visible:ring-2 focus-visible:ring-primary outline-none" 
+                />
+              </div>
+            )}
             <div>
-              <label htmlFor="login-name" className="block text-xs font-medium text-gray-700 mb-1.5">Full Name</label>
-              <input 
-                id="login-name" 
-                type="text" 
-                placeholder="John Doe" 
-                value={name}
-                onChange={(e) => setName(e.target.value)}
-                className="input-field focus-visible:ring-2 focus-visible:ring-primary outline-none" 
-                required
-              />
-            </div>
-            <div>
-              <label htmlFor="login-email" className="block text-xs font-medium text-gray-700 mb-1.5">Email Address (Optional)</label>
+              <label htmlFor="login-email" className="block text-xs font-medium text-gray-700 mb-1.5">Email Address</label>
               <input 
                 id="login-email" 
                 type="email" 
@@ -544,54 +573,59 @@ const LoginScreen = ({ onLogin, onGuest }: { onLogin: (user: SimpleUser) => void
                 className="input-field focus-visible:ring-2 focus-visible:ring-primary outline-none" 
               />
             </div>
+            {isSignup && (
+              <div>
+                <label htmlFor="signup-phone" className="block text-xs font-medium text-gray-700 mb-1.5">Phone Number <span className="text-gray-600 font-normal">(Optional)</span></label>
+                <input id="signup-phone" type="tel" placeholder="+1 (555) 000-0000" className="input-field focus-visible:ring-2 focus-visible:ring-primary outline-none" />
+              </div>
+            )}
+            <div>
+              <label htmlFor="login-password" className="block text-xs font-medium text-gray-700 mb-1.5">Password</label>
+              <input 
+                id="login-password" 
+                type="password" 
+                placeholder="••••••••" 
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                className="input-field focus-visible:ring-2 focus-visible:ring-primary outline-none" 
+              />
+              {!isSignup && (
+                <div className="mt-1.5 text-right">
+                  <a href="#" className="text-xs text-primary hover:underline font-medium focus-visible:ring-2 focus-visible:ring-primary outline-none rounded">Forgot Password?</a>
+                </div>
+              )}
+            </div>
             
             <div className="pt-2 space-y-3">
               <button 
                 type="submit"
                 className="btn-primary w-full py-2.5 text-base shadow-lg shadow-primary/20 focus-visible:ring-2 focus-visible:ring-primary outline-none flex items-center justify-center gap-2"
-                disabled={loading || !name.trim()}
+                disabled={loading}
               >
-                {loading ? 'Signing in...' : 'Sign In'}
+                {loading ? 'Processing...' : (isSignup ? 'Create Account' : 'Sign In')}
               </button>
-
-              <div className="relative py-2">
-                <div className="absolute inset-0 flex items-center" aria-hidden="true">
-                  <div className="w-full border-t border-gray-100"></div>
-                </div>
-                <div className="relative flex justify-center text-xs uppercase">
-                  <span className="bg-white px-2 text-gray-400">Quick Login</span>
-                </div>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <button 
-                  type="button"
-                  onClick={() => { setName('Alice Smith'); setEmail('alice@withiii.com'); }}
-                  className="btn-outline py-2 text-xs focus-visible:ring-2 focus-visible:ring-primary outline-none"
-                >
-                  Alice (Host)
-                </button>
-                <button 
-                  type="button"
-                  onClick={() => { setName('Bob Johnson'); setEmail('bob@example.com'); }}
-                  className="btn-outline py-2 text-xs focus-visible:ring-2 focus-visible:ring-primary outline-none"
-                >
-                  Bob (User)
-                </button>
-              </div>
 
               <button 
                 type="button"
                 onClick={onGuest} 
                 className="btn-outline w-full py-2.5 text-base focus-visible:ring-2 focus-visible:ring-primary outline-none"
               >
-                Continue as Guest
+                Create Map as a Guest
               </button>
             </div>
           </form>
+          
+          <p className="mt-8 text-center text-xs text-gray-600">
+            {isSignup ? (
+              <>Already have an account? <button type="button" onClick={() => setIsSignup(false)} className="text-primary font-bold hover:underline focus-visible:ring-2 focus-visible:ring-primary outline-none rounded px-1">Sign In</button></>
+            ) : (
+              <>Don't have an account? <button type="button" onClick={() => setIsSignup(true)} className="text-primary font-bold hover:underline focus-visible:ring-2 focus-visible:ring-primary outline-none rounded px-1">Sign up for free</button></>
+            )}
+          </p>
         </motion.div>
       </div>
 
+      {/* Right Side: Graphic */}
       <div className="hidden lg:block lg:w-1/2 relative bg-secondary overflow-hidden">
         <img 
           src="https://lh3.googleusercontent.com/d/1c4_ler6geYm2OOstsjZJTv_P_XiWfUxx" 
@@ -600,6 +634,16 @@ const LoginScreen = ({ onLogin, onGuest }: { onLogin: (user: SimpleUser) => void
           referrerPolicy="no-referrer"
         />
       </div>
+
+      <AnimatePresence>
+        {toast && (
+          <Toast 
+            message={toast.message} 
+            type={toast.type} 
+            onClose={() => setToast(null)} 
+          />
+        )}
+      </AnimatePresence>
     </div>
   );
 };
@@ -824,7 +868,7 @@ const Dashboard = ({ onAction }: { onAction: (action: string) => void }) => {
   );
 };
 
-const MapView = ({ map, onBack, onReRate, user }: { map: RelationalMap, onBack: () => void, onReRate?: (map: RelationalMap) => void, user: SimpleUser | null }) => {
+const MapView = ({ map, onBack, onReRate, user }: { map: RelationalMap, onBack: () => void, onReRate?: (map: RelationalMap) => void, user: User | null }) => {
   const [activeRelationship, setActiveRelationship] = useState<{ fromId: string, toId: string } | null>(null);
   const [relationships, setRelationships] = useState<Relationship[]>([]);
 
@@ -832,10 +876,10 @@ const MapView = ({ map, onBack, onReRate, user }: { map: RelationalMap, onBack: 
     if (!user || !map.id) return;
     
     // Presence
-    const presenceRef = doc(db, `maps/${map.id}/presence`, user.uid);
+    const presenceRef = doc(db, `maps/${map.id}/presence`, user.id);
     const updatePresence = () => {
       setDoc(presenceRef, {
-        userId: user.uid,
+        userId: user?.id,
         mapId: map.id,
         lastSeen: serverTimestamp()
       }, { merge: true });
@@ -853,7 +897,7 @@ const MapView = ({ map, onBack, onReRate, user }: { map: RelationalMap, onBack: 
       clearInterval(presenceInterval);
       unsubscribe();
     };
-  }, [map.id, user]);
+  }, [map.id]);
 
   const owner = MOCK_USERS.find(u => u.id === map.ownerId);
   const participants = MOCK_USERS.filter(u => map.participants.includes(u.id));
@@ -1271,7 +1315,7 @@ const MapCard = ({ map, onClick, statusOverride, onReRate }: { map: RelationalMa
   );
 };
 
-const MapsScreen = ({ onAddMap, onReRate, user }: { onAddMap: () => void, onReRate: (map: RelationalMap) => void, user: SimpleUser | null }) => {
+const MapsScreen = ({ onAddMap, onReRate, user }: { onAddMap: () => void, onReRate: (map: RelationalMap) => void, user: User | null }) => {
   const [activeTab, setActiveTab] = useState('my-maps');
   const [searchQuery, setSearchQuery] = useState('');
   const [selectedMap, setSelectedMap] = useState<RelationalMap | null>(null);
@@ -1297,8 +1341,8 @@ const MapsScreen = ({ onAddMap, onReRate, user }: { onAddMap: () => void, onReRa
   }, [user]);
 
   const pendingCounts = {
-    'my-maps': maps.filter(m => (m.ownerId === user?.uid || m.coOwned) && m.status === 'Draft').length,
-    'participated': maps.filter(m => m.participants.includes(user?.uid || '') && m.status === 'Active').length,
+    'my-maps': maps.filter(m => (m.ownerId === user?.id || m.coOwned) && m.status === 'Draft').length,
+    'participated': maps.filter(m => m.participants.includes(user?.id || '') && m.status === 'Active').length,
     'shared': maps.filter(m => m.shared && m.status === 'Active').length,
   };
 
@@ -1310,8 +1354,8 @@ const MapsScreen = ({ onAddMap, onReRate, user }: { onAddMap: () => void, onReRa
 
   const filteredMaps = maps.filter(map => {
     const matchesSearch = map.name.toLowerCase().includes(searchQuery.toLowerCase());
-    if (activeTab === 'my-maps') return matchesSearch && (map.ownerId === user?.uid || map.coOwned);
-    if (activeTab === 'participated') return matchesSearch && map.participants.includes(user?.uid || '');
+    if (activeTab === 'my-maps') return matchesSearch && (map.ownerId === user?.id || map.coOwned);
+    if (activeTab === 'participated') return matchesSearch && map.participants.includes(user?.id || '');
     if (activeTab === 'shared') return matchesSearch && map.shared;
     return matchesSearch;
   });
@@ -2754,7 +2798,7 @@ const MapWizard = ({
   onCancel, 
   isGuest, 
   onSignup, 
-  userRole = 'Withiii Host',
+  userRole = 'Individual User',
   initialData,
   user
 }: { 
@@ -2764,7 +2808,7 @@ const MapWizard = ({
   onSignup?: () => void, 
   userRole?: string,
   initialData?: any,
-  user: SimpleUser | null
+  user: User | null
 }) => {
   const canSelectMapType = !isGuest && userRole !== 'Individual User';
   const [step, setStep] = useState(initialData ? 3 : 1);
@@ -3482,7 +3526,7 @@ const MapWizard = ({
                     name: mapData.name,
                     description: mapData.description,
                     type: mapType === 'personal' ? 'Individual' : (mapType === 'within-team' ? 'Team' : 'Organization'),
-                    ownerId: user.uid,
+                    ownerId: user.id,
                     participants: mapData.people.map(p => p.id),
                     status: 'Active',
                     createdAt: serverTimestamp(),
@@ -3499,7 +3543,7 @@ const MapWizard = ({
                   // Save relationships
                   for (const p of mapData.people) {
                     await addDoc(collection(db, `maps/${mapRef.id}/relationships`), {
-                      fromId: user.uid,
+                      fromId: user.id,
                       toId: p.id,
                       current: p.actual,
                       goal: p.target,
@@ -4251,15 +4295,8 @@ const ParticipationTracker = () => (
 
 // --- Main App ---
 
-interface SimpleUser {
-  uid: string;
-  displayName: string;
-  email: string;
-  photoURL: string;
-}
-
 export default function App() {
-  const [user, setUser] = useState<SimpleUser | null>(null);
+  const [user, setUser] = useState<User | null>(null);
   const [isLoggedIn, setIsLoggedIn] = useState(false);
   const [isGuest, setIsGuest] = useState(false);
   const [currentScreen, setCurrentScreen] = useState('dashboard');
@@ -4269,11 +4306,10 @@ export default function App() {
   const [reRatingMap, setReRatingMap] = useState<any>(null);
 
   useEffect(() => {
-    // Load user from localStorage if exists
-    const savedUser = localStorage.getItem('withiii_user');
+    // Demo login persistence
+    const savedUser = localStorage.getItem('demo_user');
     if (savedUser) {
-      const u = JSON.parse(savedUser);
-      setUser(u);
+      setUser(JSON.parse(savedUser));
       setIsLoggedIn(true);
     }
 
@@ -4297,11 +4333,11 @@ export default function App() {
     };
   }, []);
 
-  const handleLogout = () => {
-    localStorage.removeItem('withiii_user');
-    setUser(null);
+  const handleLogout = async () => {
+    localStorage.removeItem('demo_user');
     setIsLoggedIn(false);
     setIsGuest(false);
+    setUser(null);
     setCurrentScreen('dashboard');
   };
 
@@ -4335,7 +4371,7 @@ export default function App() {
   const renderScreen = () => {
     switch (currentScreen) {
       case 'dashboard': return <Dashboard onAction={setCurrentScreen} />;
-      case 'maps': return <MapsScreen onAddMap={() => setCurrentScreen('create-map')} onReRate={(map) => { setReRatingMap(map); setCurrentScreen('create-map'); }} user={user} />;
+      case 'maps': return <MapsScreen user={user} onAddMap={() => setCurrentScreen('create-map')} onReRate={(map) => { setReRatingMap(map); setCurrentScreen('create-map'); }} />;
       case 'organizations': return <OrganizationsScreen />;
       case 'organizations-add': return <OrganizationsScreen initialShowAdd />;
       case 'facilitators': return <FacilitatorsScreen />;
@@ -4356,7 +4392,7 @@ export default function App() {
             isGuest ? setIsGuest(false) : setCurrentScreen('maps');
           }}
           isGuest={isGuest} 
-          userRole={isGuest ? 'Guest' : MOCK_USERS[0].role}
+          userRole={isGuest ? 'Guest' : (user?.role || 'Individual User')}
           initialData={reRatingMap}
           onSignup={() => {
             setReRatingMap(null);
