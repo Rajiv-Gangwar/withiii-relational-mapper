@@ -1491,8 +1491,12 @@ const OrganizationsScreen = ({ initialShowAdd = false }: { initialShowAdd?: bool
     name: '',
     admins: [{ name: '', email: '' }],
     facilitator: '',
-    licenses: ''
+    licenses: '',
+    logo: null as File | null,
+    logoPreview: '' as string
   });
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
 
   const [orgs, setOrgs] = useState([
     { name: 'Dunder Mifflin', admins: [{ name: 'Michael Scott', email: 'michael@dm.com' }], facilitator: 'Toby Flenderson', status: 'Active', date: '2024-01-15' },
@@ -1517,6 +1521,36 @@ const OrganizationsScreen = ({ initialShowAdd = false }: { initialShowAdd?: bool
     setNewOrg({ ...newOrg, admins: updatedAdmins });
   };
 
+  const handleFile = (file: File) => {
+    if (file && file.type.startsWith('image/')) {
+      const reader = new FileReader();
+      reader.onload = (e) => {
+        setNewOrg({ 
+          ...newOrg, 
+          logo: file, 
+          logoPreview: e.target?.result as string 
+        });
+      };
+      reader.readAsDataURL(file);
+    }
+  };
+
+  const onDragOver = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(true);
+  };
+
+  const onDragLeave = () => {
+    setIsDragging(false);
+  };
+
+  const onDrop = (e: React.DragEvent) => {
+    e.preventDefault();
+    setIsDragging(false);
+    const file = e.dataTransfer.files[0];
+    if (file) handleFile(file);
+  };
+
   const handleAddOrg = () => {
     try {
       if (!newOrg.name || newOrg.admins.some(a => !a.name || !a.email)) {
@@ -1532,7 +1566,14 @@ const OrganizationsScreen = ({ initialShowAdd = false }: { initialShowAdd?: bool
       }]);
       setShowAddModal(false);
       setModalStep(1);
-      setNewOrg({ name: '', admins: [{ name: '', email: '' }], facilitator: '', licenses: '' });
+      setNewOrg({ 
+        name: '', 
+        admins: [{ name: '', email: '' }], 
+        facilitator: '', 
+        licenses: '',
+        logo: null,
+        logoPreview: ''
+      });
       setToast({ message: 'Organization added successfully!', type: 'success' });
     } catch (error: any) {
       setToast({ message: error.message || 'Failed to add organization.', type: 'error' });
@@ -1687,9 +1728,41 @@ const OrganizationsScreen = ({ initialShowAdd = false }: { initialShowAdd?: bool
                         </div>
                         <div>
                           <label htmlFor="logo-upload" className="block text-[10px] font-bold text-gray-600 uppercase mb-1.5 tracking-wider">Organization Logo</label>
-                          <div className="border-2 border-dashed border-gray-100 rounded-xl p-4 text-center hover:bg-gray-50 transition-colors cursor-pointer">
-                            <Upload className="w-6 h-6 text-gray-300 mx-auto mb-2" />
-                            <p className="text-[10px] text-gray-400 font-medium">Click to upload or drag and drop</p>
+                          <input 
+                            id="logo-upload"
+                            type="file" 
+                            ref={fileInputRef}
+                            onChange={(e) => e.target.files?.[0] && handleFile(e.target.files[0])}
+                            accept="image/*"
+                            className="hidden"
+                          />
+                          <div 
+                            onClick={() => fileInputRef.current?.click()}
+                            onDragOver={onDragOver}
+                            onDragLeave={onDragLeave}
+                            onDrop={onDrop}
+                            className={cn(
+                              "border-2 border-dashed rounded-xl p-4 text-center transition-all cursor-pointer overflow-hidden min-h-[100px] flex flex-col items-center justify-center relative",
+                              isDragging ? "border-primary bg-primary/5" : "border-gray-100 hover:bg-gray-50",
+                              newOrg.logoPreview ? "border-solid border-primary/20" : ""
+                            )}
+                          >
+                            {newOrg.logoPreview ? (
+                              <div className="relative group w-full h-full">
+                                <img src={newOrg.logoPreview} alt="Logo preview" className="max-h-20 max-w-full mx-auto object-contain rounded-md" />
+                                <div className="absolute inset-0 bg-black/40 opacity-0 group-hover:opacity-100 transition-opacity flex items-center justify-center rounded-md">
+                                  <p className="text-[10px] text-white font-bold">Change Logo</p>
+                                </div>
+                              </div>
+                            ) : (
+                              <>
+                                <Upload className={cn("w-6 h-6 mb-2 transition-colors", isDragging ? "text-primary" : "text-gray-300")} />
+                                <p className={cn("text-[10px] font-medium transition-colors", isDragging ? "text-primary" : "text-gray-400")}>
+                                  Click to upload or drag and drop
+                                </p>
+                                <p className="text-[8px] text-gray-400 mt-1 uppercase tracking-tighter">PNG, JPG up to 5MB</p>
+                              </>
+                            )}
                           </div>
                         </div>
                       </div>
